@@ -29,7 +29,7 @@ const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: "saad.66loop@gmail.com",
-        pass: "iolelytrroaxmrcu", // Consider using environment variables for security
+        pass: "API_KEY", // Consider using environment variables for security
     },
 });
 
@@ -42,8 +42,6 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
 });
 
-const DOMAIN = "sandbox-123.mailgun.org";  // Replace with your Mailgun domain
-const API_KEY = "f6d562730faf8a07bc322c3cbe5318b3-c02fd0ba-085e0485";   // Replace with your Mailgun API key
 const mg = mailgun({ apiKey: API_KEY, domain: DOMAIN });
 
 
