@@ -41,8 +41,8 @@ const transporter = nodemailer.createTransport({
 });
 cloudinary.config({
     cloud_name: "dawajxqa6", // Replace with your Cloudinary cloud name
-    api_key: "472524798362365", // Replace with your Cloudinary API key
-    api_secret: "HvavpSQ_phza5VyLvqeZPYkeV5Y", // Replace with your Cloudinary API secret
+    api_key: "API_KEY", // Replace with your Cloudinary API key
+    api_secret: "API_SECRET", // Replace with your Cloudinary API secret
 });
 // Define a schema for signup data
 const userSchema = new mongoose.Schema({
