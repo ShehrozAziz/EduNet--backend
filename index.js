@@ -17,7 +17,7 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const server = http.createServer(app);
 const io = new Server(server);
 
-const genAI = new GoogleGenerativeAI("AIzaSyC4bKJxrcXjozKdJrZqPWSNALB168ddZ10");
+const genAI = new GoogleGenerativeAI("API_KEY");
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const PORT = 5000;
