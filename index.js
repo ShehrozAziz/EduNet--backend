@@ -4,14 +4,21 @@ const { Server } = require("socket.io");
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const mailgun = require("mailgun-js");
 const nodemailer = require("nodemailer");
+const fs = require('fs');
+const path = require('path');
 const jwt = require("jsonwebtoken");
 const AutoIncrement = require('mongoose-sequence')(mongoose);
 const app = express();
-
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const server = http.createServer(app);
 const io = new Server(server);
+
+const genAI = new GoogleGenerativeAI("AIzaSyC4bKJxrcXjozKdJrZqPWSNALB168ddZ10");
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const PORT = 5000;
 //cwpx rxsn ilsp wcql
@@ -29,10 +36,14 @@ const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
         user: "saad.66loop@gmail.com",
-        pass: "API_KEY", // Consider using environment variables for security
+        pass: "iolelytrroaxmrcu", // Consider using environment variables for security
     },
 });
-
+cloudinary.config({
+    cloud_name: "dawajxqa6", // Replace with your Cloudinary cloud name
+    api_key: "472524798362365", // Replace with your Cloudinary API key
+    api_secret: "HvavpSQ_phza5VyLvqeZPYkeV5Y", // Replace with your Cloudinary API secret
+});
 // Define a schema for signup data
 const userSchema = new mongoose.Schema({
     fullname: { type: String, required: true },
@@ -41,9 +52,6 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     isVerified: { type: Boolean, default: false },
 });
-
-const mg = mailgun({ apiKey: API_KEY, domain: DOMAIN });
-
 
 // Define a schema for Classes
 const classesSchema = new mongoose.Schema({
@@ -92,6 +100,19 @@ const assignmentSubmissionSchema = new mongoose.Schema({
     timestamp: { type: Date, default: Date.now },     // Automatically set the timestamp when the document is created
 });
 
+const noteSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    fileUrl: { type: String, required: false },
+    fileType: { type: String, required: false },
+    classroomid: { type: String, required: true },
+    email: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+});
+
+
+const Note = mongoose.model('Note', noteSchema);
+
 const AssignmentSubmission = mongoose.model('AssignmentSubmission', assignmentSubmissionSchema);
 
 
@@ -113,6 +134,24 @@ const Class = mongoose.model('Class', classesSchema);
 const User = mongoose.model('User', userSchema);
 
 const PrivateClassroom = mongoose.model("PrivateClassroom", privateClassroomSchema);
+
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+        // Determine the resource type based on the file MIME type
+        const isRawFile = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.mimetype);
+
+        return {
+            folder: 'notes', // Folder name in Cloudinary
+            resource_type: isRawFile ? 'raw' : 'auto', // Use 'raw' for PDFs, DOCX; 'auto' for images
+            allowed_formats: ['jpg', 'png', 'pdf', 'docx'], // Allowable file types
+        };
+    },
+});
+
+const upload = multer({ storage });
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
@@ -349,6 +388,29 @@ app.post('/getUserPrivateClassrooms', async (req, res) => {
         });
     }
 });
+async function RenerateAIResponse(prompt, privateclassroomid) {
+    var aiPrompt = prompt.replace('@AI-Gen', '').trim();
+    aiPrompt = aiPrompt + " Keep your answer under 50 words"
+
+    // Assuming generateContent returns the response object
+    const response = await model.generateContent(aiPrompt);
+
+    // Extract the message text from the response
+    let message = "Unable to generate response.";
+
+    const response2 = await response.response;
+    message = response2.text();
+
+    const email = "AI GENERATED RESPONSE";
+    const newChat = new Chat({
+        email,
+        privateclassroomid,
+        message, // Save the extracted message
+    });
+
+    await newChat.save();
+}
+
 
 app.post('/sendMessage', async (req, res) => {
     const { email, privateclassroomid, message } = req.body;
@@ -367,7 +429,10 @@ app.post('/sendMessage', async (req, res) => {
 
         // Save the document to the database
         await newChat.save();
+        if (message.includes('@AI-Gen')) {
+            await RenerateAIResponse(message, privateclassroomid);
 
+        }
         //console.log('Message saved:', newChat);
         res.status(201).json({
             message: 'Message sent successfully',
@@ -611,7 +676,32 @@ app.put('/updateUserDetails', async (req, res) => {
         res.status(500).json({ message: 'Error updating user details', error: err.message });
     }
 });
+app.post('/notes', upload.single('file'), async (req, res) => {
+    try {
+        const { title, content } = req.body;
+        const newNote = new Note({
+            title,
+            content,
+            fileUrl: req.file ? req.file.path : null,
+            fileType: req.file ? req.file.mimetype : null,
+            classroomid: req.body.classroomid,
+            email: req.body.email
+        });
+        await newNote.save();
+        res.status(201).json({ message: 'Note created successfully', note: newNote });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to create note', details: err.message });
+    }
+});
 
+app.post('/getnotes', async (req, res) => {
+    try {
+        const notes = await Note.find();
+        res.status(200).json(notes);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch notes' });
+    }
+});
 
 
 
